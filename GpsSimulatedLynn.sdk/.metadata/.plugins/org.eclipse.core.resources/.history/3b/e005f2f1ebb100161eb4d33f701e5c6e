@@ -1,0 +1,34 @@
+/*
+ * My_UART.h
+ *
+ *  Created on: 2016Äê11ÔÂ23ÈÕ
+ *      Author: lin.zheng
+ */
+
+#ifndef SRC_MY_UART_H_
+#define SRC_MY_UART_H_
+
+
+#include "xuartlite.h"
+/************************** Constant Definitions *****************************/
+
+/*
+ * The following constants map to the XPAR parameters created in the
+ * xparameters.h file. They are defined here such that a user can easily
+ * change all the needed parameters in one place.
+ */
+
+
+
+
+/************************** Variable Definitions *****************************/
+
+XUartLite GpsUartLite;		/* Instance of the UartLite Device */
+
+/*
+ * The following buffers are used in this example to send and receive data
+ * with the UartLite.
+ */
+
+#endif /* SRC_MY_UART_H_ */
+

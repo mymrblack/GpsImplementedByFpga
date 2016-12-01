@@ -1,0 +1,13 @@
+/*
+ * My_UART.c
+ *
+ *  Created on: 2016Äê11ÔÂ23ÈÕ
+ *      Author: lin.zheng
+ */
+
+int UartHasData(u8 *RecvBuffer){
+
+	return XUartLite_Recv(&UartLite, RecvBuffer, TEST_BUFFER_SIZE);
+}
+
+

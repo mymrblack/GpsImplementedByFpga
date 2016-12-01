@@ -1,0 +1,221 @@
+/*
+ * GPS.c
+ *
+ *  Created on: 2016Äê11ÔÂ16ÈÕ
+ *      Author: lin.zheng
+ */
+#include "GPS.h"
+#include "sleep.h"
+#include "xil_io.h"
+/************************** Variable Definitions *****************************/
+
+/*
+ * The instances to support the device drivers are global such that they
+ * are initialized to zero each time the program runs.
+ */
+#ifndef TESTAPP_GEN
+static INTC GpsIntcInstance;	/* The instance of the Interrupt Controller */
+static XUartLite GpsUartLiteInst;  /* The instance of the UartLite Device */
+#endif
+
+/*
+ * The following variables are shared between non-interrupt processing and
+ * interrupt processing such that they must be global.
+ */
+
+/*
+ * The following buffer is used in this example to send data  with the UartLite.
+ */
+static u8 GpsRcevBuffer[GPS_RECV_BUFFER_SIZE];
+/*
+ * The following counter is used to determine when the entire buffer has
+ * been sent.
+ */
+
+static volatile int GpsTotalSentCount;
+static u8 GpsBuffer[GPS_BUFFER_SIZE] = { 0 };
+static GPS_Data gps_data = {0};
+static int days[12]={31,28,31,30,31,30,31,31,30,31,30,31};
+Time_Data realTime ={0};
+void IfGpsDataComePrintIt(void){
+
+	gps_data.PPS = GPS_mReadReg(GPS_BASEADDR, CONTROL_REG_OFFSET);
+	if (gps_data.PPS && gps_data.year!=0){
+		GpsDataHandle();
+	}
+	while (gps_data.PPS){
+			gps_data.PPS = GPS_mReadReg(GPS_BASEADDR, CONTROL_REG_OFFSET);
+			usleep(GPS_PPS_SLEEP);
+	}
+	return;
+}
+
+int GpsInit(void){
+	int Status = 0;
+
+	Status = GpsUartInit(&GpsIntcInstance,
+				 &GpsUartLiteInst,
+				 UARTLITE_DEVICE_ID,
+				 UARTLITE_IRPT_INTR);
+
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+
+	xil_printf("GPS Initialed!\n");
+
+	return XST_SUCCESS;
+}
+int GpsUartInit(INTC *GpsInstancePtr,
+				XUartLite *GpsUartLiteInstancePtr,
+				u16 GpsUartLiteDeviceId,
+				u16 GpsUartLiteIntrId){
+
+	int Status = 0;
+	Status = UartLiteIntrInit(GpsInstancePtr,
+				 GpsUartLiteInstancePtr,
+				 GpsUartLiteDeviceId,
+				 GpsUartLiteIntrId);
+
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+
+
+
+	return XST_SUCCESS;
+
+}
+/*****************************************************************************/
+/**
+*
+* This function is the handler which performs processing to send data to the
+* UartLite. It is called from an interrupt context such that the amount of
+* processing performed should be minimized. It is called when the transmit
+* FIFO of the UartLite is empty and more data can be sent through the UartLite.
+*
+* This handler provides an example of how to handle data for the UartLite, but
+* is application specific.
+*
+* @param	CallBackRef contains a callback reference from the driver.
+*		In this case it is the instance pointer for the UartLite driver.
+* @param	EventData contains the number of bytes sent or received for sent
+*		and receive events.
+*
+* @return	None.
+*
+* @note		None.
+*
+****************************************************************************/
+void GpsUartLiteSendHandler(void *CallBackRef, unsigned int EventData)
+{
+	GpsTotalSentCount = EventData;
+}
+/****************************************************************************/
+/**
+*
+* This function is the handler which performs processing to receive data from
+* the UartLite. It is called from an interrupt context such that the amount of
+* processing performed should be minimized. It is called when any data is
+* present in the receive FIFO of the UartLite such that the data can be
+* retrieved from the UartLite. The amount of data present in the FIFO is not
+* known when this function is called.
+*
+* This handler provides an example of how to handle data for the UartLite, but
+* is application specific.
+*
+* @param	CallBackRef contains a callback reference from the driver,
+*		in this case it is the instance pointer for the UartLite driver.
+* @param	EventData contains the number of bytes sent or received for sent
+*		and receive events.
+*
+* @return	None.
+*
+* @note		None.
+*
+****************************************************************************/
+static int Index = 0;
+
+void GpsUartLiteRecvHandler(void *CallBackRef, unsigned int EventData)
+{
+
+	if((GpsRcevBuffer[0]=='$')||(Index>0))
+	{
+		GpsBuffer[Index++]=GpsRcevBuffer[0];
+	}
+
+	if((Index>0)&&(GpsRcevBuffer[0]=='\n'))
+	{
+		GpsBuffer[Index]=0;
+		sscanf(GpsBuffer,"$GNRMC,%2d%2d%2d.%3d",
+				&gps_data.utc_hour,&gps_data.minute,&gps_data.second,&gps_data.millisec);
+		sscanf(GpsBuffer+Index-15,"%2d%2d%2d",
+				&gps_data.day,&gps_data.month,&gps_data.year);
+		xil_printf("Interupt:%2d %2d %2d %2d %2d %2d %2d\n\r",
+					gps_data.year,gps_data.month,gps_data.day,gps_data.utc_hour,gps_data.minute,gps_data.second,gps_data.millisec);
+		GPS_mWriteReg(GPS_BASEADDR, CONTROL_REG_OFFSET, 0);
+
+		Index = 0;
+	}
+
+	XUartLite_Recv(&GpsUartLiteInst, GpsRcevBuffer, GPS_RECV_BUFFER_SIZE);
+	return;
+}
+
+void GpsDataHandle(void){
+
+	if(realTime.year == 0)
+		RealTimeInit();
+	else{
+		RealTimeGet();
+
+		xil_printf("20%02d-%02d-%02d  %02d:%02d:%02d:%03d%03d\n\r",
+				realTime.year,realTime.month,realTime.day,realTime.hour,realTime.minute,realTime.second,realTime.millisec,realTime.microsec);
+	}
+
+	return;
+}
+void RealTimeInit(void){
+	realTime.year = gps_data.year;
+	realTime.month = gps_data.month;
+	realTime.day = gps_data.day;
+	realTime.hour = gps_data.utc_hour + HOUR_OFFSET;
+	realTime.minute = gps_data.minute;
+	return;
+}
+void RealTimeGet(void){
+
+	u32	tenPsCounter = 0;
+	tenPsCounter = GPS_mReadReg(GPS_BASEADDR, CONTROL_REG_OFFSET);//########################################
+
+	realTime.second = gps_data.second + MINUTE_OFFSET;
+	realTime.millisec = tenPsCounter/100000 + gps_data.millisec;
+	realTime.microsec = tenPsCounter/100%1000;
+
+	if(realTime.second == 60)
+	{
+		realTime.minute++;
+		realTime.second = 0;
+	}
+	if(realTime.minute == 60)
+	{
+		realTime.hour++;
+		realTime.minute=0;
+	}
+	if(realTime.hour == 24)
+	{
+		realTime.day++;
+		realTime.hour = 0;
+	}
+	if(realTime.day == days[realTime.month-1])
+	{
+		realTime.month++;
+		realTime.day = 1;
+	}
+	if(realTime.month == 13)
+	{
+		realTime.year++;
+		realTime.month = 1;
+	}
+	return;
+}

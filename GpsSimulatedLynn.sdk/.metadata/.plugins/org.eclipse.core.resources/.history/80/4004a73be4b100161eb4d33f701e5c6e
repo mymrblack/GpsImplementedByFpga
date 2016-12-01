@@ -1,0 +1,115 @@
+/*
+ * GPS.c
+ *
+ *  Created on: 2016Äê11ÔÂ16ÈÕ
+ *      Author: lin.zheng
+ */
+#include "GPS.h"
+#include "sleep.h"
+#include "xuartlite.h"
+#include "xil_io.h"
+#include "My_UART.h"
+/************************** Variable Definitions *****************************/
+
+/*
+ * The instances to support the device drivers are global such that they
+ * are initialized to zero each time the program runs.
+ */
+
+static	int monthOverLeapYear[12]={31,29,31,30,31,30,31,31,30,31,30,31};
+static	int monthOverUsualYear[12]={31,28,31,30,31,30,31,31,30,31,30,31};
+void Gps_TimeCorrect(GPS_Data *gps_data){
+
+	gps_data->utc_hour = gps_data->utc_hour + 8;
+	gps_data->year = gps_data->year + 2000;
+
+	if(gps_data->utc_hour > 23){
+		gps_data->utc_hour = gps_data->utc_hour - 24;
+		gps_data->day ++;
+		if(gps_data->year%4 == 0){
+			if(gps_data->day == monthOverLeapYear[gps_data->month]){
+				gps_data->day = 1;
+				gps_data->month ++;
+			}
+		}
+		else{
+			if(gps_data->day == monthOverUsualYear[gps_data->month]){
+				gps_data->month ++;
+				gps_data->day = 1;
+			}
+		}
+
+		if(gps_data->month == 13){
+			gps_data->month = 1;
+			gps_data->year ++;
+		}
+	}
+	return;
+}
+
+
+
+void WaitUnitlPpsCome(void){
+	while(GPS_mReadReg(GPS_BASEADDR, CONTROL_REG_OFFSET)== 0){
+		usleep(1);
+	}
+//	while(GPS_mReadReg(GPS_BASEADDR, CONTROL_REG_OFFSET)!= 0){
+//		usleep(1);
+//	}
+	return;
+}
+
+void GpsInit(void){
+	int Index = 0;
+	u8 	GpsBuffer[90] = {0};
+	GPS_Data gps_data={0};
+	u8 	RecvBuffer[GPS_RECV_BUFFER_SIZE];/* Buffer for Receiving Data */
+	while (1) {
+		if(XUartLite_Recv(&UartLite, RecvBuffer, GPS_RECV_BUFFER_SIZE)){
+			xil_printf(RecvBuffer);
+
+			if((RecvBuffer[0]=='$')||(Index>0))
+			{
+				if(RecvBuffer[0]=='$')
+					Index = 0;
+				GpsBuffer[Index++]=RecvBuffer[0];
+			}
+
+			if((Index>0)&&(RecvBuffer[0]=='\n'))
+			{
+				GpsBuffer[Index]=0;
+				sscanf(GpsBuffer,"$GNRMC,%2d%2d%2d",
+						&gps_data.utc_hour,&gps_data.minute,&gps_data.second);
+
+				sscanf(GpsBuffer+Index-15,"%2d%2d%2d",
+						&gps_data.day,&gps_data.month,&gps_data.year);
+				Index = 0;
+				xil_printf(GpsBuffer);
+				xil_printf('\n');
+			}
+		}
+		if (gps_data.year !=0 && RecvBuffer[0]=='\n'){
+			break;
+		}
+	}
+	xil_printf(GpsBuffer);
+	xil_printf('\n');
+	Gps_TimeCorrect(&gps_data);
+
+	GPS_SetTime(&gps_data);
+
+	return;
+}
+
+void GPS_SetTime(GPS_Data *gps_data){
+	GPS_mWriteReg(GPS_BASEADDR, CONTROL_REG_OFFSET, 0x1);
+	GPS_mWriteReg(GPS_BASEADDR, YEAR_REG_OFFSET, gps_data->year);
+	GPS_mWriteReg(GPS_BASEADDR, MONTH_REG_OFFSET, gps_data->month);
+	GPS_mWriteReg(GPS_BASEADDR, DAY_REG_OFFSET, gps_data->day);
+	GPS_mWriteReg(GPS_BASEADDR, HOUR_REG_OFFSET, gps_data->utc_hour);
+	GPS_mWriteReg(GPS_BASEADDR, MINUTE_REG_OFFSET, gps_data->minute);
+	GPS_mWriteReg(GPS_BASEADDR, SECOND_REG_OFFSET, gps_data->second);
+	GPS_mWriteReg(GPS_BASEADDR, CONTROL_REG_OFFSET, 0x0);
+	return;
+}
+

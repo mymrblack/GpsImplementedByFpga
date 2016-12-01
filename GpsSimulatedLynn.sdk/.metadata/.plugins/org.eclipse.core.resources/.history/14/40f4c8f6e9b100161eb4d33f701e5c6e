@@ -1,0 +1,141 @@
+/*
+ * GPS.h
+ *
+ *  Created on: 2016Äê11ÔÂ16ÈÕ
+ *      Author: lin.zheng
+ */
+
+#ifndef SRC_GPS_H_
+#define SRC_GPS_H_
+
+/****************** Include Files ********************/
+
+#include "xil_assert.h"
+#include "xil_types.h"
+#include "xstatus.h"
+#include "My_UART.h"
+/**************************** Type Definitions *****************************/
+/**
+ *
+ * Write a value to a PPS register. A 32 bit write is performed.
+ * If the component is implemented in a smaller width, only the least
+ * significant data is written.
+ *
+ * @param   BaseAddress is the base address of the PPSdevice.
+ * @param   RegOffset is the register offset from the base to write to.
+ * @param   Data is the data written to the register.
+ *
+ * @return  None.
+ *
+ * @note
+ * C-style signature:
+ * 	void PPS_mWriteReg(Xuint32 BaseAddress, unsigned RegOffset, Xuint32 Data)
+ *
+ */
+
+
+
+
+#define YEAR_REG_OFFSET 0
+#define MONTH_REG_OFFSET 4
+#define DAY_REG_OFFSET 8
+#define HOUR_REG_OFFSET 12
+#define MINUTE_REG_OFFSET 16
+#define SECOND_REG_OFFSET 20
+#define MILLISEC_REG_OFFSET 24
+#define MICROSEC_REG_OFFSET 28
+#define CONTROL_REG_OFFSET 32
+#define GPS_TBD_REG_OFFSET 36
+
+#define GPS_BASEADDR	XPAR_GPSIPSIMULATEDLYNN_0_GPS_AXI_BASEADDR
+#define GPS_RECV_BUFFER_SIZE        1
+#define GPS_BUFFER_SIZE		80
+#define GPS_SLEEP			100000
+#define GPS_PPS_SLEEP		10
+#define HOUR_OFFSET			8
+#define MINUTE_OFFSET		1
+
+typedef	struct{
+	int PPS;
+	int year;
+	int month;
+	int day;
+	int utc_hour;//When use Beijing time, it should plus 8 hour.
+	int minute;
+	int second;
+	int millisec;
+	int microsec;
+} GPS_Data;
+typedef	struct{
+	int year;
+	int month;
+	int day;
+	int hour;//When use Beijing time, it should plus 8 hour.
+	int minute;
+	int second;
+	int millisec;
+	int microsec;
+} Time_Data;
+
+
+#define GPS_mWriteReg(BaseAddress, RegOffset, Data) \
+   	Xil_Out32((BaseAddress) + (RegOffset), (u32)(Data))
+
+/**
+ *
+ * Read a value from a PPS register. A 32 bit read is performed.
+ * If the component is implemented in a smaller width, only the least
+ * significant data is read from the register. The most significant data
+ * will be read as 0.
+ *
+ * @param   BaseAddress is the base address of the PPS device.
+ * @param   RegOffset is the register offset from the base to write to.
+ *
+ * @return  Data is the data from the register.
+ *
+ * @note
+ * C-style signature:
+ * 	Xuint32 PPS_mReadReg(Xuint32 BaseAddress, unsigned RegOffset)
+ *
+ */
+#define GPS_mReadReg(BaseAddress, RegOffset) \
+    Xil_In32((BaseAddress) + (RegOffset))
+
+/************************** Function Prototypes ****************************/
+/**
+ *
+ * Run a self-test on the driver/device. Note this may be a destructive test if
+ * resets of the device are performed.
+ *
+ * If the hardware system is not built correctly, this function may never
+ * return to the caller.
+ *
+ * @param   baseaddr_p is the base address of the PPS instance to be worked on.
+ *
+ * @return
+ *
+ *    - XST_SUCCESS   if all self-test code passed
+ *    - XST_FAILURE   if any self-test code failed
+ *
+ * @note    Caching must be turned off for this function to work.
+ * @note    Self test may fail if data memory and device are not on the same bus.
+ *
+ */
+XStatus PPS_Reg_SelfTest(void * baseaddr_p);
+
+void Gps_TimeCorrect(GPS_Data *gps_data);
+
+void WaitUnitlPpsCome(void);
+
+void GpsInit(void);
+
+void GPS_SetTime(GPS_Data *gps_data);
+
+void Gps_GetTimeInfo(u8 *GpsBuffer, GPS_Data *gps_data, int Index);
+
+int Gps_GetInfoFromUart(u8 *GpsBuffer);
+
+#endif /* SRC_GPS_H_ */
+
+
+

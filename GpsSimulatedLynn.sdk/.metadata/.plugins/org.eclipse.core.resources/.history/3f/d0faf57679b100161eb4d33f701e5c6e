@@ -1,0 +1,17 @@
+/*
+ * My_UART.h
+ *
+ *  Created on: 2016Äê11ÔÂ23ÈÕ
+ *      Author: lin.zheng
+ */
+
+#ifndef SRC_MY_UART_H_
+#define SRC_MY_UART_H_
+
+#include "xuartlite.h"
+/************************** Variable Definitions *****************************/
+XUartLite UartLite;		/* Instance of the UartLite Device */
+#define UARTLITE_DEVICE_ID	XPAR_UARTLITE_0_DEVICE_ID
+
+
+#endif /* SRC_MY_UART_H_ */
